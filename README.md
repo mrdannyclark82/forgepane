@@ -4,9 +4,9 @@
 
 ForgePane fuses a keyboard-first file manager with a tabbed source editor, an embedded terminal, Git controls, two-way cloud sync, shared line review, and a floating chat that talks to **your local Ollama models**. Plain Python on GTK 3. It works fully offline.
 
-![ForgePane: editor with the bundled FUD plugin open](docs/screenshot-editor.png)
+Screenshots and a 26-second demo video are attached to the [v0.1.0 release](https://github.com/mrdannyclark82/forgepane/releases/tag/v0.1.0) — see [docs/MEDIA.md](docs/MEDIA.md).
 
-> 26-second demo — browse, edit, local AI chat, and the FUD plugin: [docs/demo.mp4](docs/demo.mp4)
+> **Demo:** a 26-second video (browse, edit, local AI chat, FUD plugin) ships with the [v0.1.0 release](https://github.com/mrdannyclark82/forgepane/releases/tag/v0.1.0) as `forgepane-demo.mp4`.
 
 ## Install
 
@@ -89,7 +89,7 @@ Enable `"selection_info"` under `enabled_plugins` in `~/.config/forgepane/settin
 
 - `src/` — the application (installed verbatim by `install.sh`)
 - `plugins/` — ready-to-copy plugins (FUD, selection counter)
-- `docs/` — screenshots and the demo video
+- `docs/` — release media notes (screenshots and the demo video are release assets)
 - `install.sh` / `uninstall.sh` — user-local install, no sudo
 
 ## Roadmap
