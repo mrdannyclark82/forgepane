@@ -1,3 +1,12 @@
+/* ForgePane theme — named palette (0.2.0).
+   Theme discipline ported from Prime's FilesUserDisplay ThemeEngine: one
+   palette, named by ROLE, applied from a single place. Palette values are
+   ForgePane's own (unchanged from 0.1); the same hex may serve two roles
+   where 0.1 already reused it. Roles:
+     --bg-window #191d25    --bg-panel #1c2230     --bg-header #222837
+     --bg-header-alt #212737  --bg-raised #30394b  --border #343d51
+     --fg #e8edf7           --fg-strong #eef2fa   --fg-dim #b2c5df
+     --accent #7cbbff       --accent-soft #9ec6f5 --selection #32547d */
 window { background-color: #191d25; color: #e8edf7; }
 headerbar { background: #222837; color: #eef2fa; border-bottom: 1px solid #343d51; }
 headerbar button { background: #30394b; color: #eef2fa; }

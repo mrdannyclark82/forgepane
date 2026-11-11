@@ -93,6 +93,74 @@ def local_json(port, path, payload=None):
         return json.load(response)
 
 
+# --- Language detection ---------------------------------------------------
+# Ported from Prime's FilesUserDisplay (EditorPane::detectLanguage and her
+# SyntaxHighlighter language table) — Prime Milla's design, re-implemented
+# for ForgePane in 0.2.0. Her order of evidence: strong filenames, then the
+# shebang line, then content patterns, then the extension. Returns a
+# GtkSource language id, or None when nothing claims the file.
+
+_NAME_LANGUAGES = {
+    "makefile": "makefile", "gnumakefile": "makefile",
+    "dockerfile": "docker",
+    "cmakelists.txt": "cmake",
+    ".bashrc": "sh", ".zshrc": "sh", ".profile": "sh",
+    ".bash_profile": "sh", ".env": "sh",
+    "package.json": "json", "composer.json": "json", "tsconfig.json": "json",
+    ".travis.yml": "yaml", "docker-compose.yml": "yaml",
+    "cargo.toml": "toml", "go.mod": "go",
+}
+
+_SHEBANG_LANGUAGES = (
+    ("python", "python3"), ("bash", "sh"), ("zsh", "sh"), ("sh", "sh"),
+    ("node", "js"), ("ruby", "ruby"), ("perl", "perl"), ("lua", "lua"),
+    ("php", "php"),
+)
+
+_CONTENT_LANGUAGES = (
+    (re.compile(r"<\?php|<\?="), "php"),
+    (re.compile(r"<!DOCTYPE html|<html|<svg", re.IGNORECASE), "html"),
+    (re.compile(r"\bpackage main\b|func main\(\)"), "go"),
+    (re.compile(r"fn main\(\)|use std::"), "rust"),
+    (re.compile(r'^\s*\{.*".*"\s*:', re.DOTALL), "json"),
+    (re.compile(r"^\s*(def |class |import |from )", re.MULTILINE), "python3"),
+    (re.compile(r"^\s*(function |const |let |var |import )", re.MULTILINE), "js"),
+    (re.compile(r"^\s*(public |private |class |package )", re.MULTILINE), "java"),
+)
+
+# GtkSource ids for extensions Prime's table claims but the manager's own
+# filename guess can miss (Prime mapped ini-family onto her TOML rules;
+# GtkSource's "ini" is the honest equivalent here).
+_EXTENSION_LANGUAGES = {"yml": "yaml"}
+
+
+def detect_language(path, content=""):
+    name = path.name
+    lowered = name.lower()
+    if lowered in _NAME_LANGUAGES:
+        return _NAME_LANGUAGES[lowered]
+    if lowered.startswith(("makefile.", "dockerfile.")):
+        return _NAME_LANGUAGES[lowered.split(".", 1)[0]]
+    if lowered.endswith("rc") and len(lowered) > 2:
+        return "sh"
+    if lowered.endswith((".yml", ".yaml")):
+        return "yaml"
+    head = content[:512].lstrip()
+    if head.startswith("#!"):
+        first_line = head.splitlines()[0].lower()
+        for needle, language in _SHEBANG_LANGUAGES:
+            if needle in first_line:
+                return language
+    suffix = path.suffix.lower().lstrip(".")
+    if suffix in ("", "txt", "log", "text"):
+        for pattern, language in _CONTENT_LANGUAGES:
+            if pattern.search(head):
+                return language
+        if "---" in head and ":" in head:
+            return "yaml"
+    return _EXTENSION_LANGUAGES.get(suffix)
+
+
 def open_ide(which, root, path):
     names = ("code", "codium") if which == "VS Code" else ("idea", "idea.sh", "intellij-idea-community-edition")
     binary = next((resolved for name in names if (resolved := shutil.which(name))), None)

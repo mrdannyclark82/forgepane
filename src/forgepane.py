@@ -341,7 +341,11 @@ class Workspace:
                 return
         content, revision = core.read_document(path)
         buffer = GtkSource.Buffer()
-        language = GtkSource.LanguageManager.get_default().guess_language(str(path), None)
+        manager = GtkSource.LanguageManager.get_default()
+        detected = core.detect_language(path, content)
+        language = manager.get_language(detected) if detected else None
+        if language is None:
+            language = manager.guess_language(str(path), None)
         if language:
             buffer.set_language(language)
         scheme = GtkSource.StyleSchemeManager.get_default().get_scheme(self.settings["editor_scheme"])
