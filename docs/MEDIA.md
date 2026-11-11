@@ -1,8 +1,5 @@
-ForgePane — demo video and screenshots
-
-The 26-second demo video (forgepane-demo.mp4) and the full-resolution
-screenshots ship as assets on the GitHub release:
-https://github.com/mrdannyclark82/forgepane/releases/tag/v0.1.0
-
-The demo shows: browsing a project, opening hello.py in the editor,
-the floating local-AI chat window, and the bundled FUD plugin window.
+Demo video note: the 26-second demo (forgepane-demo.mp4) could not be attached to the
+v0.1.0 release in this pass — the GitHub token in the local connector can create
+releases but uploads.github.com rejects its credentials (401). The video file is
+preserved with the release materials; attach it from any GitHub web session:
+Releases -> v0.1.0 -> Edit -> drop forgepane-demo.mp4 in.
