@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=ForgePane
+GenericName=Developer File Manager and Editor
+Comment=Files, tabbed editing, terminal, Git and local AI in one lightweight window
+Exec=/home/milla/.local/bin/forgepane %f
+Icon=utilities-terminal
+Terminal=false
+Categories=Development;Utility;
+Keywords=files;editor;terminal;git;code;
+StartupWMClass=dev.forgepane.Workspace
+MimeType=inode/directory;

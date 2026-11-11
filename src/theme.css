@@ -1,0 +1,10 @@
+window { background-color: #191d25; color: #e8edf7; }
+headerbar { background: #222837; color: #eef2fa; border-bottom: 1px solid #343d51; }
+headerbar button { background: #30394b; color: #eef2fa; }
+notebook header { background: #212737; }
+notebook tab:checked { border-bottom: 2px solid #7cbbff; }
+.section { color: #9ec6f5; font-weight: bold; padding: 5px; }
+.welcome { color: #e8edf7; font-size: 30px; font-weight: bold; }
+.status { color: #b2c5df; background: #222837; padding: 5px 10px; }
+treeview.view { background-color: #1c2230; color: #e8edf7; }
+treeview.view:selected { background-color: #32547d; color: white; }

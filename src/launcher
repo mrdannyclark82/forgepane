@@ -1,0 +1,5 @@
+#!/bin/sh
+# ForgePane launcher — resolves the installed app directory from this
+# script's real location, so the same launcher works from the packaged
+# tree, a checkout, or a bin directory on PATH.
+exec /usr/bin/python3 "$(dirname "$(readlink -f "$0")")/forgepane.py" "$@"
