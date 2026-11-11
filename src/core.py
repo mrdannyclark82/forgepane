@@ -62,6 +62,39 @@ def run(args, cwd):
     return output[-12000:]
 
 
+def project_files(root):
+    """List workspace-relative paths without scanning Git-ignored directories."""
+    if shutil.which("git"):
+        probe = subprocess.run(["git", "rev-parse", "--is-inside-work-tree"], cwd=root,
+                               capture_output=True, timeout=10)
+        if probe.stdout.strip() == b"true":
+            output = subprocess.check_output(
+                ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", "."],
+                cwd=root, stderr=subprocess.PIPE, timeout=20)
+            return sorted({os.fsdecode(name) for name in output.split(b"\0") if name})
+    files = []
+    for folder, directories, names in os.walk(root):
+        directories[:] = [name for name in directories if name != ".git"]
+        files.extend((Path(folder) / name).relative_to(root).as_posix()
+                     for name in names if name != ".git")
+    return sorted(files)
+
+
+def review_patch(root, staged):
+    args = ["git", "--no-pager", "diff", "--no-color", "--no-ext-diff", "--no-textconv"]
+    if staged:
+        args.append("--cached")
+    result = subprocess.run([*args, "--", "."], cwd=root, capture_output=True, timeout=20)
+    if result.returncode:
+        raise ValueError(result.stderr.decode("utf-8", "replace").strip() or "Git diff failed.")
+    if len(result.stdout) > 32000:
+        raise ValueError("The patch exceeds 32,000 bytes. Review a smaller set of changes.")
+    try:
+        return result.stdout.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError("The patch must be UTF-8 to preview it exactly.") from exc
+
+
 def git_args(action):
     return {
         "status": ["git", "status", "--short", "--branch"],

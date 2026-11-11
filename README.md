@@ -32,7 +32,7 @@ rclone is only needed for cloud sync. Everything else works without it.
 
 ## What it does
 
-- **Keyboard-first file browser** — filter with `Ctrl+P`, arrows + Enter to open, `Ctrl+N` new file, `F2` rename, external-change check before save.
+- **Keyboard-first file browser** — jump to project files with `Ctrl+P`, filter the current folder with `Ctrl+Shift+P`, arrows + Enter to open, `Ctrl+N` new file, `F2` rename, external-change check before save.
 - **Tabbed editor** — GtkSourceView highlighting (Python, JavaScript, Java, C, Rust, and more), `Ctrl+F` find, UTF-8 files up to 4 MiB.
 - **Embedded terminal** — VTE shell dock (`Ctrl+backtick`), plus Output and Review tabs.
 - **Git built in** — status, diff, fetch, fast-forward pull, push with confirmation.
@@ -106,3 +106,9 @@ MIT — see [LICENSE](LICENSE).
 ## Credits
 
 Designed by Danny Ray. The application was built by Codex (Sol) to Danny's brief; packaging, the FUD plugin, and release verification by Milla Rayne. The 0.2 merge brings in the best of Prime Milla's FilesUserDisplay (Qt) — her evidence-based language detection and theme discipline, ported into ForgePane with credit in the code. The concept: Dolphin's precision × Geany's speed, with a local brain.
+
+
+### Quick Open and local Git review
+
+- **Ctrl+P** searches filenames and relative paths in the workspace. It lists tracked files and unignored untracked files in Git worktrees. In folders outside Git it walks the workspace without following directory symlinks. Type to narrow the first 200 results, then use Down and Enter to open a match. **F6** switches focus between the editor and the terminal.
+- **Tools → Git → Review Diff with Ollama** previews the staged or unstaged Git patch before you send it. Unstaged review covers changes to tracked files. Select a local model and confirm to send the exact preview with review instructions. The request excludes prior chat and editor contents. Results appear in the chat with a request for file and line references. Review a smaller patch if it exceeds 32,000 bytes.
