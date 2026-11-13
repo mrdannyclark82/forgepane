@@ -13,8 +13,8 @@ Screenshots and a 26-second demo video are attached to the [latest release](http
 User-local — **no sudo**:
 
 ```bash
-tar -xzf forgepane-0.2.0.tar.gz
-cd forgepane-0.2.0
+tar -xzf forgepane-0.3.0.tar.gz
+cd forgepane-0.3.0
 ./install.sh
 ```
 

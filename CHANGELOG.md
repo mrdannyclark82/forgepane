@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.0 — 2026-11-12
+
+- **Project quick-open (Ctrl+P)** — jump to any file in the project;
+  the list comes from `git ls-files --exclude-standard`, so gitignored
+  files never appear. The current-folder filter moved to Ctrl+Shift+P.
+- **Review Diff** — preview the local Git diff, confirm, and a local
+  Ollama model (verified with qwen2.5-coder) reviews it and reports
+  findings with file and line. Patches are capped at 32,000 bytes.
+- **Fix: startup crash on mixed GTK systems** — Gdk is now pinned to
+  3.0 at startup; unpinned, a system that loads Gdk 4 first made the
+  app crash before its window opened.
+
+
 ## 0.2.0 — 2026-11-11
 
 The merge release: the best of both DevFile builds in one app.
