@@ -32,9 +32,10 @@ rclone is only needed for cloud sync. Everything else works without it.
 
 ## What it does
 
-- **Keyboard-first file browser** — jump to project files with `Ctrl+P`, filter the current folder with `Ctrl+Shift+P`, arrows + Enter to open, `Ctrl+N` new file, `F2` rename, external-change check before save.
+- **Keyboard-first file browser** — jump to project files with `Ctrl+P`, filter the current folder with `Ctrl+Shift+P`, arrows + Enter to open, `Ctrl+N` new file, `F2` rename, `Ctrl+R` refresh the file list, external-change check before save.
 - **Tabbed editor** — GtkSourceView highlighting (Python, JavaScript, Java, C, Rust, and more), `Ctrl+F` find, UTF-8 files up to 4 MiB.
 - **Embedded terminal** — VTE shell dock (`Ctrl+backtick`), plus Output and Review tabs.
+- **Run the current file** — **▶ Run** in the header, `F5`, or `Ctrl+Enter` saves the active tab and runs it; the program's stdout and stderr stream live into the **Output** tab (stderr in red) while the editor stays usable. The interpreter comes from the `#!` line, then the extension, then content detection: Python, Bash/sh, Node, and also Ruby, Perl, Lua, PHP, `go run`, and Deno/tsx/ts-node for TypeScript when installed. **■ Stop** (`Shift+F5`) ends the whole process group (SIGTERM, then SIGKILL), **Clear** (`Ctrl+Shift+K`) empties the pane, and each run ends with its exit code (or signal) and duration. A stdin line under the output feeds programs that ask for input; **EOF** closes their stdin. Output is capped at the last ~10,000 lines. Git and sync results appear in the same tab.
 - **Git built in** — status, diff, fetch, fast-forward pull, push with confirmation.
 - **Two-way cloud sync** — rclone `bisync`, preview-first, with a fail-safe access check.
 - **Shared line review** — a small review server; collaborators join over SSH tunnels and comment on exact file contents.
@@ -91,6 +92,7 @@ Enable `"selection_info"` under `enabled_plugins` in `~/.config/forgepane/settin
 - `plugins/` — ready-to-copy plugins (FUD, selection counter)
 - `docs/` — release media notes (screenshots and the demo video are release assets)
 - `install.sh` / `uninstall.sh` — user-local install, no sudo
+- `tests/` — pytest suite for the runner (`pytest tests`; needs PyGObject, no display)
 
 ## Roadmap
 

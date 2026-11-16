@@ -17,3 +17,5 @@ notebook tab:checked { border-bottom: 2px solid #7cbbff; }
 .status { color: #b2c5df; background: #222837; padding: 5px 10px; }
 treeview.view { background-color: #1c2230; color: #e8edf7; }
 treeview.view:selected { background-color: #32547d; color: white; }
+headerbar button:disabled, button:disabled { color: #6b778f; }
+.run-state { color: #b2c5df; }
