@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 
 import core
+import runner
 
 try:
     import gi
@@ -116,8 +117,7 @@ class Workspace:
         self.button(terminal_box, "Start shell", self.start_shell)
         self.dock.append_page(terminal_box, label("Terminal"))
 
-        output, self.output = self.transcript()
-        self.dock.append_page(output, label("Output"))
+        self.dock.append_page(self.build_output(), label("Output"))
         review = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         review.set_border_width(8)
         review_view, self.review_text = self.transcript()
@@ -129,19 +129,23 @@ class Workspace:
         self.button(review, "Connect review session", self.connect_review)
         self.dock.append_page(review, label("Review"))
 
-        for title, callback in (("Open", self.choose_file), ("Save", self.save),
+        for title, callback in (("Open", self.choose_file), ("Save", self.save), ("▶ Run", self.run_file),
                                 ("Terminal", self.toggle_terminal), ("AI Chat", self.show_chat)):
             control = Gtk.Button(label=title)
             control.connect("clicked", lambda _, fn=callback: self.guard(fn))
-            (header.pack_start if title in {"Open", "Save"} else header.pack_end)(control)
+            (header.pack_start if title in {"Open", "Save", "▶ Run"} else header.pack_end)(control)
+            if title == "▶ Run":
+                control.set_tooltip_text("Save and run the current file (F5 or Ctrl+Enter)")
+                self.header_run = control
         menu_button = Gtk.MenuButton(label="Tools")
         menu_button.set_popup(self.menu)
         header.pack_end(menu_button)
 
-        file_menu, git_menu, integrations = Gtk.Menu(), Gtk.Menu(), Gtk.Menu()
+        file_menu, run_menu, git_menu, integrations = Gtk.Menu(), Gtk.Menu(), Gtk.Menu(), Gtk.Menu()
         self.section(self.menu, "Files", file_menu, 0)
-        self.section(self.menu, "Git", git_menu, 1)
-        self.section(self.menu, "Integrations", integrations, 2)
+        self.section(self.menu, "Run", run_menu, 1)
+        self.section(self.menu, "Git", git_menu, 2)
+        self.section(self.menu, "Integrations", integrations, 3)
         self.command(file_menu, "Open File", self.choose_file, "<Primary>o")
         self.command(file_menu, "New File", self.new_file, "<Primary>n")
         self.command(file_menu, "New Folder", self.new_folder)
@@ -155,7 +159,10 @@ class Workspace:
         self.command(file_menu, "Find in Editor", self.find, "<Primary>f")
         self.command(file_menu, "Next Tab", self.tabs.next_page, "<Primary>Page_Down")
         self.command(file_menu, "Previous Tab", self.tabs.prev_page, "<Primary>Page_Up")
-        self.command(file_menu, "Refresh Files", self.refresh_files, "F5")
+        self.command(file_menu, "Refresh Files", self.refresh_files, "<Primary>r")
+        self.command(run_menu, "Run Current File", self.run_file, "F5", "<Primary>Return")
+        self.command(run_menu, "Stop Run", self.stop_run, "<Shift>F5")
+        self.command(run_menu, "Clear Output", self.clear_output, "<Primary><Shift>k")
         for action in ("status", "diff", "fetch", "pull", "push"):
             self.command(git_menu, action.title(), lambda value=action: self.git(value))
         self.command(integrations, "Terminal Sidebar", self.toggle_terminal, "<Primary>grave")
@@ -193,15 +200,19 @@ class Workspace:
         else:
             menu.insert(item, position)
 
-    def command(self, menu, name, fn, shortcut=""):
+    def command(self, menu, name, fn, shortcut="", *extra):
         item = Gtk.MenuItem(label=name)
         item.connect("activate", lambda _: self.guard(fn))
         menu.append(item)
-        shortcut = self.settings["shortcuts"].get(name, shortcut)
-        if shortcut:
-            key, mods = Gtk.accelerator_parse(shortcut)
+        custom = self.settings["shortcuts"].get(name)
+        shortcuts = [custom] if custom is not None else [shortcut, *extra]
+        for index, accel in enumerate(shortcuts):
+            if not accel:
+                continue
+            key, mods = Gtk.accelerator_parse(accel)
             if key:
-                item.add_accelerator("activate", self.actions, key, mods, Gtk.AccelFlags.VISIBLE)
+                flags = Gtk.AccelFlags.VISIBLE if index == 0 else Gtk.AccelFlags.LOCKED
+                item.add_accelerator("activate", self.actions, key, mods, flags)
         item.show()
 
     def apply_theme(self):
@@ -418,6 +429,10 @@ class Workspace:
         if any(doc["buffer"].get_modified() for doc in self.documents.values()):
             if not self.confirm("Discard all unsaved edits and quit?"):
                 return True
+        if self.runner.running:
+            if not self.confirm("A run is still going. Stop it and quit?"):
+                return True
+            self.runner.kill_now()
         self.pool.shutdown(wait=False, cancel_futures=True)
         return False
 
@@ -546,6 +561,133 @@ class Workspace:
                             wrap_mode=Gtk.WrapMode.WORD_CHAR, top_margin=8, left_margin=8, right_margin=8)
         return scrolled(view), view.get_buffer()
 
+    # ---- Output tab: run the active file and stream its output -------------
+
+    OUTPUT_MAX_LINES = 10000
+    OUTPUT_TRIM_TO = 8000
+
+    def build_output(self):
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        box.set_border_width(4)
+        bar = Gtk.Box(spacing=4)
+        self.run_button = Gtk.Button(label="▶ Run")
+        self.run_button.set_tooltip_text("Save and run the current file (F5 or Ctrl+Enter)")
+        self.stop_button = Gtk.Button(label="■ Stop", sensitive=False)
+        self.stop_button.set_tooltip_text("Stop the run: SIGTERM, then SIGKILL (Shift+F5)")
+        clear = Gtk.Button(label="Clear")
+        clear.set_tooltip_text("Clear the output (Ctrl+Shift+K)")
+        for button, callback in ((self.run_button, self.run_file), (self.stop_button, self.stop_run),
+                                 (clear, self.clear_output)):
+            button.connect("clicked", lambda _, fn=callback: self.guard(fn))
+            bar.pack_start(button, False, False, 0)
+        self.run_state = label("", "run-state")
+        self.run_state.set_ellipsize(Pango.EllipsizeMode.END)
+        bar.pack_start(self.run_state, True, True, 4)
+        box.pack_start(bar, False, False, 0)
+        view_pane, self.output = self.transcript()
+        self.output_view = view_pane.get_child()
+        self.output_view.get_style_context().add_class("output")
+        self.output.create_tag("stderr", foreground="#ff6b6b")
+        self.output.create_tag("meta", foreground="#7cbbff", weight=Pango.Weight.BOLD)
+        self.output.create_tag("ok", foreground="#7ee787", weight=Pango.Weight.BOLD)
+        self.output.create_tag("fail", foreground="#ff6b6b", weight=Pango.Weight.BOLD)
+        self.output.create_tag("stdin", foreground="#b2c5df", style=Pango.Style.ITALIC)
+        self.output_end = self.output.create_mark("end", self.output.get_end_iter(), False)
+        self.output_scroll = 0
+        box.pack_start(view_pane, True, True, 0)
+        row = Gtk.Box(spacing=4)
+        self.stdin_entry = Gtk.Entry(placeholder_text="stdin — type a line and press Enter",
+                                     sensitive=False)
+        self.stdin_entry.connect("activate", lambda _: self.guard(self.send_stdin))
+        self.eof_button = Gtk.Button(label="EOF", sensitive=False)
+        self.eof_button.set_tooltip_text("Close the program's stdin (like Ctrl+D)")
+        self.eof_button.connect("clicked", lambda _: self.guard(self.runner.close_stdin))
+        row.pack_start(self.stdin_entry, True, True, 0)
+        row.pack_start(self.eof_button, False, False, 0)
+        box.pack_start(row, False, False, 0)
+        self.runner = runner.Runner(self.on_run_output, self.on_run_exit)
+        self.run_target = None
+        return box
+
+    def output_write(self, text, tag=None):
+        buf = self.output
+        end = buf.get_end_iter()
+        if tag:
+            buf.insert_with_tags_by_name(end, text, tag)
+        else:
+            buf.insert(end, text)
+        if buf.get_line_count() > self.OUTPUT_MAX_LINES:
+            cut = buf.get_iter_at_line(buf.get_line_count() - self.OUTPUT_TRIM_TO)
+            buf.delete(buf.get_start_iter(), cut)
+            buf.insert_with_tags_by_name(buf.get_start_iter(),
+                                         "… earlier output trimmed …\n", "meta")
+        if not self.output_scroll:
+            # One scroll per burst, after GTK has laid out the new text.
+            self.output_scroll = GLib.idle_add(self.scroll_output, priority=GLib.PRIORITY_LOW)
+
+    def scroll_output(self):
+        self.output_scroll = 0
+        self.output_view.scroll_to_mark(self.output_end, 0.0, True, 0.0, 1.0)
+        return False
+
+    def output_line(self, text, tag=None):
+        buf = self.output
+        if buf.get_char_count() and not buf.get_end_iter().starts_line():
+            self.output_write("\n")
+        self.output_write(text + "\n", tag)
+
+    def clear_output(self):
+        self.output.set_text("")
+
+    def set_running(self, running):
+        for widget in (self.run_button, self.header_run):
+            widget.set_sensitive(not running)
+        for widget in (self.stop_button, self.stdin_entry, self.eof_button):
+            widget.set_sensitive(running)
+
+    def run_file(self):
+        if self.runner.running:
+            self.show_dock(1)
+            self.status.set_text("A run is already going. Stop it first (Shift+F5).")
+            return
+        doc = self.document()
+        if not doc:
+            raise ValueError("Open a file to run it.")
+        if doc["buffer"].get_modified():
+            self.save()
+        path = doc["path"]
+        argv = runner.command_for(path, self.text(doc["buffer"]))
+        self.show_dock(1)
+        self.output_line(f"▶ {' '.join(argv)}   (in {path.parent})", "meta")
+        self.runner.start(argv, str(path.parent))
+        self.run_target = path.name
+        self.set_running(True)
+        self.run_state.set_text(f"Running {path.name}…")
+        self.status.set_text(f"Running {path.name}")
+
+    def stop_run(self):
+        if self.runner.stop():
+            self.run_state.set_text("Stopping…")
+
+    def send_stdin(self):
+        text = self.stdin_entry.get_text()
+        if self.runner.send(text + "\n"):
+            self.output_write(text + "\n", "stdin")
+            self.stdin_entry.set_text("")
+        else:
+            self.status.set_text("The program isn't reading stdin right now.")
+
+    def on_run_output(self, text, stream):
+        self.output_write(text, "stderr" if stream == "stderr" else None)
+
+    def on_run_exit(self, returncode, seconds):
+        outcome = runner.describe_exit(returncode)
+        took = runner.format_duration(seconds)
+        self.output_line(f"■ {self.run_target} {outcome} · {took}", "ok" if returncode == 0 else "fail")
+        self.set_running(False)
+        self.run_state.set_text(f"{outcome} · {took}")
+        self.status.set_text(f"{self.run_target} {outcome} in {took}")
+
     def background(self, name, work, success, failure=None):
         if name in self.busy:
             return False
@@ -572,10 +714,11 @@ class Workspace:
             return
         root = self.root
         self.show_dock(1)
-        self.output.set_text("Running…")
+        self.output_line(f"▶ {' '.join(args)}   (in {root})", "meta")
+        self.output_line("Running…", "meta")
         self.background(name, lambda: core.run(args, root),
-                        lambda result: self.output.set_text(result or "Done."),
-                        lambda error: self.output.set_text(error))
+                        lambda result: self.output_line(result.rstrip("\n") or "Done."),
+                        lambda error: self.output_line(error.rstrip("\n"), "stderr"))
 
     def git(self, action):
         if action == "pull" and any(doc["buffer"].get_modified() for doc in self.documents.values()):

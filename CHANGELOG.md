@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+- **Run the current file and watch its output in the app** — ▶ Run in the
+  header, F5, or Ctrl+Enter saves the active tab and runs it. The Output
+  tab, which until now only showed Git and sync results after they
+  finished, is now a live console: stdout and stderr stream in as the
+  program prints (stderr in red), the UI never blocks, and each run gets a
+  header with the exact command and a footer with the exit code or signal
+  and the duration. The interpreter comes from the #! line, then the
+  extension, then content detection (python3, bash/sh, node; ruby, perl,
+  lua, php, go run, deno/tsx/ts-node when installed), with a plain message
+  when it isn't installed. ■ Stop (Shift+F5) ends the whole process group
+  (SIGTERM, then SIGKILL after 1.5 s); Clear is Ctrl+Shift+K; a stdin line
+  feeds programs that read input. Output is capped at ~10,000 lines.
+- **Shortcut change:** Refresh Files moves from F5 to Ctrl+R so F5 can run
+  the file. Either can be rebound under `shortcuts` in settings.json.
+- Git and sync results now append to the Output tab under a header line
+  instead of replacing its contents.
+
 ## 0.3.0 — 2026-11-12
 
 - **Project quick-open (Ctrl+P)** — jump to any file in the project;
