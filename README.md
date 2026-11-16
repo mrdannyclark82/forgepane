@@ -25,6 +25,8 @@ That installs the program in `~/.local/share/forgepane`, a `forgepane` launcher 
 - Garuda / Arch: `sudo pacman -S --needed python-gobject gtk3 gtksourceview4 vte3 git rclone`
 - Ubuntu 24.04 / Debian: `sudo apt install python3-gi gir1.2-gtk-3.0 gir1.2-gtksource-4 gir1.2-vte-2.91 git rclone`
 
+Optional, for the Preview tab: `webkit2gtk-4.1` plus `gst-libav gst-plugins-good` for video (Arch), or `gir1.2-webkit2-4.1 gstreamer1.0-libav gstreamer1.0-plugins-good` (Debian/Ubuntu).
+
 rclone is only needed for cloud sync. Everything else works without it.
 
 **Run:** launch *ForgePane* from your app menu, or `forgepane [folder]`.
@@ -36,6 +38,7 @@ rclone is only needed for cloud sync. Everything else works without it.
 - **Tabbed editor** — GtkSourceView highlighting (Python, JavaScript, Java, C, Rust, and more), `Ctrl+F` find, UTF-8 files up to 4 MiB.
 - **Embedded terminal** — VTE shell dock (`Ctrl+backtick`), plus Output and Review tabs.
 - **Run the current file** — **▶ Run** in the header, `F5`, or `Ctrl+Enter` saves the active tab and runs it; the program's stdout and stderr stream live into the **Output** tab (stderr in red) while the editor stays usable. The interpreter comes from the `#!` line, then the extension, then content detection: Python, Bash/sh, Node, and also Ruby, Perl, Lua, PHP, `go run`, and Deno/tsx/ts-node for TypeScript when installed. **■ Stop** (`Shift+F5`) ends the whole process group (SIGTERM, then SIGKILL), **Clear** (`Ctrl+Shift+K`) empties the pane, and each run ends with its exit code (or signal) and duration. A stdin line under the output feeds programs that ask for input; **EOF** closes their stdin. Output is capped at the last ~10,000 lines. Git and sync results appear in the same tab.
+- **Preview tab** — a small built-in browser (WebKitGTK) beside Terminal, Output, and Review. When a run prints a local address such as `http://localhost:5173/`, `http://0.0.0.0:8000/`, `http://[::1]:3000/`, or an Express-style `serving on port 6390`, Preview opens it once per run and retries every second for up to 30 s while the server starts. Stop, a new run, or navigating yourself cancels the retry. **Auto-open** can be switched off in the tab; set `"preview_auto_open": false` in `settings.json` to start with it off. Back, ⟳ Reload, `Ctrl+L` (with Preview focused) for the address bar, and ↗ to open the page in your normal browser. Double-click an image or video in the file list, or right-click any HTML, SVG, PDF, image, or video file → **Open in Preview**. Only loopback addresses are ever opened automatically, and local files open only when you pick them. Without WebKitGTK the tab explains what to install and everything else works. Video needs GStreamer codecs (`gst-libav`); Preview says so instead of showing a blank page.
 - **Git built in** — status, diff, fetch, fast-forward pull, push with confirmation.
 - **Two-way cloud sync** — rclone `bisync`, preview-first, with a fail-safe access check.
 - **Shared line review** — a small review server; collaborators join over SSH tunnels and comment on exact file contents.

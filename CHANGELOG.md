@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **Preview tab** — a WebKitGTK view beside Terminal/Output/Review with an
+  address bar, Back, Reload, and open-in-browser. Local dev-server
+  addresses printed by a run (localhost, 127.x, 0.0.0.0 → localhost,
+  [::1], or "serving on port N") open automatically once per run, with a
+  1 s retry for up to 30 s while the server starts. Auto-open is on by
+  default (`preview_auto_open` in settings.json). Images, video, HTML, SVG,
+  and PDF files open in Preview from the file list (double-click media, or
+  right-click → Open in Preview); unplayable video shows a codec hint.
+  WebKit is imported lazily and is optional: without it the tab shows what
+  to install. Developer extras are off and only loopback URLs auto-load.
+- Output strips ANSI colour codes instead of printing them as boxes.
 - **Run the current file and watch its output in the app** — ▶ Run in the
   header, F5, or Ctrl+Enter saves the active tab and runs it. The Output
   tab, which until now only showed Git and sync results after they

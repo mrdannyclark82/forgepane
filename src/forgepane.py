@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 
 import core
+import preview
 import runner
 
 try:
@@ -20,6 +21,8 @@ except (ImportError, ValueError) as exc:
     raise SystemExit(f"ForgePane needs PyGObject, GTK 3, GtkSourceView 4, and VTE 2.91. "
                      f"See README.md for setup. ({exc})") from exc
 from gi.repository import Gdk, Gio, GLib, Gtk, GtkSource, Pango, Vte
+
+import preview_pane  # noqa: E402  (needs the GTK 3 pins above)
 
 
 def scrolled(widget):
@@ -46,7 +49,7 @@ class Workspace:
         self.review_port = None
         self.settings = {"model": "", "editor_scheme": "oblivion", "font": "Monospace 11",
                          "chat_width": 550, "chat_height": 410, "shortcuts": {},
-                         "enabled_plugins": []}
+                         "enabled_plugins": [], "preview_auto_open": True}
         try:
             self.settings.update(json.loads((core.CONFIG / "settings.json").read_text()))
         except FileNotFoundError:
@@ -87,6 +90,7 @@ class Workspace:
             renderer.set_property("ellipsize", Pango.EllipsizeMode.END)
             self.file_list.append_column(Gtk.TreeViewColumn("", renderer, text=column))
         self.file_list.connect("row-activated", self.activate_path)
+        self.file_list.connect("button-press-event", self.file_context_menu)
         files.pack_start(scrolled(self.file_list), True, True, 0)
         self.button(files, "Parent folder", lambda: self.go(self.folder.parent))
         main.pack1(files, resize=False, shrink=False)
@@ -128,6 +132,11 @@ class Workspace:
         self.button(review, "Post line comment", lambda: self.review_request(True))
         self.button(review, "Connect review session", self.connect_review)
         self.dock.append_page(review, label("Review"))
+        self.preview = preview_pane.PreviewPane(lambda: self.show_dock(3), self.status,
+                                                bool(self.settings.get("preview_auto_open", True)))
+        self.dock.append_page(self.preview.box, label("Preview"))
+        self.dock.connect("switch-page", lambda _, page, index: GLib.idle_add(self.preview.ensure)
+                          if page is self.preview.box else None)
 
         for title, callback in (("Open", self.choose_file), ("Save", self.save), ("▶ Run", self.run_file),
                                 ("Terminal", self.toggle_terminal), ("AI Chat", self.show_chat)):
@@ -157,6 +166,7 @@ class Workspace:
         self.command(file_menu, "Quick Open Project File", self.quick_open, "<Primary>p")
         self.command(file_menu, "Focus File Filter", self.file_filter.grab_focus, "<Primary><Shift>p")
         self.command(file_menu, "Find in Editor", self.find, "<Primary>f")
+        self.command(file_menu, "Open in Preview", self.open_in_preview)
         self.command(file_menu, "Next Tab", self.tabs.next_page, "<Primary>Page_Down")
         self.command(file_menu, "Previous Tab", self.tabs.prev_page, "<Primary>Page_Up")
         self.command(file_menu, "Refresh Files", self.refresh_files, "<Primary>r")
@@ -293,7 +303,47 @@ class Workspace:
 
     def activate_path(self, _, index, _column):
         path = Path(self.file_store[index][2])
+        if path.is_file() and preview.media_kind(path) in {"video", "image"}:
+            self.guard(lambda: self.preview.open_path(path.resolve()))
+            return
         self.guard(lambda: self.open_file(path) if not path.is_dir() else self.go(path))
+
+    def open_in_preview(self, path=None):
+        if path is None:
+            model, selected = self.file_list.get_selection().get_selected()
+            if selected is not None and Path(model[selected][2]).is_file() and \
+                    preview.media_kind(Path(model[selected][2])):
+                path = Path(model[selected][2])
+            elif self.document():
+                path = self.document()["path"]
+        if path is None:
+            raise ValueError("Select an HTML, SVG, image, or video file to preview.")
+        doc = next((d for d in self.documents.values() if d["path"] == path.resolve()), None)
+        if doc and doc["buffer"].get_modified():
+            self.save_document(doc)
+        self.preview.open_path(path.resolve())
+
+    def file_context_menu(self, tree, event):
+        if event.type != Gdk.EventType.BUTTON_PRESS or event.button != 3:
+            return False
+        hit = tree.get_path_at_pos(int(event.x), int(event.y))
+        if not hit:
+            return False
+        tree.get_selection().select_path(hit[0])
+        path = Path(self.file_store[hit[0]][2])
+        if path.is_dir():
+            return False
+        menu = Gtk.Menu()
+        for title, callback, enabled in (
+                ("Open in Editor", lambda: self.open_file(path), preview.media_kind(path) not in {"video", "image"}),
+                ("Open in Preview", lambda: self.open_in_preview(path), preview.media_kind(path) is not None)):
+            item = Gtk.MenuItem(label=title, sensitive=enabled)
+            item.connect("activate", lambda _, fn=callback: self.guard(fn))
+            menu.append(item)
+        menu.show_all()
+        menu.attach_to_widget(tree, None)
+        menu.popup_at_pointer(event)
+        return True
 
     def new_file(self):
         response, (name,) = self.ask("New file", [("Filename", "")])
@@ -408,7 +458,9 @@ class Workspace:
         return buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter(), True)
 
     def save(self):
-        doc = self.document()
+        self.save_document(self.document())
+
+    def save_document(self, doc):
         if doc and doc["buffer"].get_modified():
             doc["revision"] = core.save_document(doc["path"], self.text(doc["buffer"]), doc["revision"])
             doc["buffer"].set_modified(False)
@@ -659,6 +711,7 @@ class Workspace:
         argv = runner.command_for(path, self.text(doc["buffer"]))
         self.show_dock(1)
         self.output_line(f"▶ {' '.join(argv)}   (in {path.parent})", "meta")
+        self.preview.run_started()
         self.runner.start(argv, str(path.parent))
         self.run_target = path.name
         self.set_running(True)
@@ -666,6 +719,7 @@ class Workspace:
         self.status.set_text(f"Running {path.name}")
 
     def stop_run(self):
+        self.preview.run_stopped()
         if self.runner.stop():
             self.run_state.set_text("Stopping…")
 
@@ -678,9 +732,11 @@ class Workspace:
             self.status.set_text("The program isn't reading stdin right now.")
 
     def on_run_output(self, text, stream):
-        self.output_write(text, "stderr" if stream == "stderr" else None)
+        self.output_write(preview.strip_ansi(text), "stderr" if stream == "stderr" else None)
+        self.preview.feed(text, stream)
 
     def on_run_exit(self, returncode, seconds):
+        self.preview.run_stopped()
         outcome = runner.describe_exit(returncode)
         took = runner.format_duration(seconds)
         self.output_line(f"■ {self.run_target} {outcome} · {took}", "ok" if returncode == 0 else "fail")
